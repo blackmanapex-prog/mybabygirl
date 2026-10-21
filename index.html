@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For you</title>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --berry: #7a1f55;
+    --pink: #ff5fa8;
+    --pink-deep: #e63e8a;
+    --grape: #b83cd6;
+    --blush: #ffd6e8;
+    --lilac: #e4c6ff;
+    --script: "Dancing Script", "Segoe Script", "Brush Script MT", cursive;
+    --sans: "Quicksand", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; font-family: var(--sans); color: var(--berry); background: #ffb3d4; }
+
+  /* ---------- Backdrop ---------- */
+  .fallback { position: fixed; inset: 0; background: linear-gradient(155deg, #ff9ec9 0%, #e7b5ff 50%, #ffd1e6 100%); }
+  .bg {
+    position: fixed; inset: 0; background-size: cover; background-position: center;
+    opacity: 0; transition: opacity 2.4s ease; transform: scale(1.04);
+  }
+  .bg.on { opacity: 1; animation: drift 14s ease-out forwards; }
+  @keyframes drift { to { transform: scale(1.12); } }
+  .veil { position: fixed; inset: 0; background: linear-gradient(160deg, rgba(255,120,185,.38), rgba(184,60,214,.30)); }
+
+  /* ---------- Floating butterflies and hearts ---------- */
+  .float-layer { position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; }
+  .butterfly { position: absolute; left: 0; top: 0; width: 44px; height: 34px; will-change: transform; filter: drop-shadow(0 3px 6px rgba(120,20,80,.25)); }
+  .butterfly svg { width: 100%; height: 100%; overflow: visible; }
+  .wing-flap { transform-origin: 32px 24px; transform-box: view-box; animation: flap .45s ease-in-out infinite alternate; }
+  @keyframes flap { from { transform: scaleX(1); } to { transform: scaleX(.28); } }
+  .heart { position: absolute; bottom: -40px; line-height: 1; will-change: transform, opacity; filter: drop-shadow(0 2px 4px rgba(150,30,90,.25)); }
+
+
+  /* ---------- Photos & videos: each one blooms open, one at a time ---------- */
+  .strip { position: fixed; z-index: 1; display: none; pointer-events: none; opacity: 0; transition: opacity 1.6s ease .6s; --sh: clamp(230px, 34vh, 330px); }
+  body.has-photos .strip { display: block; }
+  body.started.has-photos .strip { opacity: 1; }
+  .track { position: absolute; left: 0; right: 0; top: 0; bottom: 14px; display: flex; align-items: flex-end; justify-content: center; }
+  .polaroid { flex: none; margin: 0; padding: 8px; background: #fff; border-radius: 8px; transform-origin: 50% 100%; box-shadow: 0 14px 30px rgba(150,30,100,.42); }
+  .polaroid::after { content: "💗"; display: block; text-align: center; font-size: 14px; line-height: 1; margin-top: 7px; }
+  /* the whole picture is shown, nothing is cropped */
+  .polaroid img, .polaroid video { display: block; width: auto; height: auto; max-width: calc(94vw - 16px); max-height: calc(var(--sh) - 76px); border-radius: 4px; background: #f3d6e4; }
+
+  /* phones: the picture sits across the top */
+  .strip { left: 0; right: 0; top: calc(58px + env(safe-area-inset-top)); height: var(--sh); }
+  body.has-photos main { padding-top: calc(var(--sh) + 70px + env(safe-area-inset-top)); }
+  /* wider screens: the picture sits on the left side, much bigger */
+  @media (min-width: 820px) {
+    .strip { --sh: min(80vh, 660px); left: 2vw; right: auto; top: 50%; transform: translateY(-50%); width: 40vw; }
+    .polaroid img, .polaroid video { max-width: calc(40vw - 36px); }
+    body.has-photos main { padding: 20px 20px 140px 44vw; }
+    body.has-photos .card { width: min(50vw, 560px); }
+  }
+
+  /* ---------- Envelope intro ---------- */
+  #intro {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    padding: 24px; background: linear-gradient(160deg, #ffb3d6 0%, #e2b8ff 100%);
+    transition: opacity 1.2s ease;
+  }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .intro-title { font-family: var(--script); font-weight: 700; font-size: clamp(1.9rem, 7vw, 2.6rem); color: #fff; text-shadow: 0 3px 14px rgba(160,30,100,.45); text-align: center; }
+  .bear { height: clamp(100px, 20vh, 160px); display: flex; align-items: flex-end; justify-content: center; font-size: clamp(5rem, 15vh, 7rem); line-height: 1; filter: drop-shadow(0 8px 16px rgba(130,20,80,.35)); }
+  .bear img { max-height: 100%; max-width: 70vw; object-fit: contain; }
+
+  .envelope { position: relative; width: min(82vw, 360px); height: min(55vw, 240px); margin-top: 30px; }
+  .env-back { position: absolute; inset: 0; background: #f27fb0; border-radius: 10px; box-shadow: 0 20px 44px rgba(130,20,80,.4); z-index: 0; }
+  .letter {
+    position: absolute; left: 7%; right: 7%; top: 6%; height: 88%;
+    background: #fff7fb; border-radius: 6px; z-index: 1;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    color: var(--pink-deep); font-family: var(--script); font-weight: 700; font-size: 1.7rem; padding: 16px;
+    transition: transform 1.1s cubic-bezier(.3,.7,.2,1) .7s;
+  }
+  .pocket { position: absolute; inset: 0; z-index: 2; border-radius: 10px; background: #fba8cb; clip-path: polygon(0 0, 50% 58%, 100% 0, 100% 100%, 0 100%); }
+  .pocket-shade { position: absolute; inset: 0; z-index: 2; border-radius: 10px; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,0) 40%, rgba(200,50,120,.18)); clip-path: polygon(0 0, 50% 58%, 100% 0, 100% 100%, 0 100%); }
+  .flap {
+    position: absolute; left: 0; right: 0; top: 0; height: 58%; z-index: 3;
+    background: #ee6fa6; clip-path: polygon(0 0, 100% 0, 50% 100%);
+    transform-origin: top center; transition: transform .9s ease, z-index 0s .45s;
+  }
+  .to {
+    position: absolute; left: 0; right: 0; bottom: 13%; z-index: 4; text-align: center;
+    font-family: var(--script); font-weight: 700; font-size: clamp(1.7rem, 7vw, 2.4rem); color: #8a1e58;
+    transition: opacity .5s ease;
+  }
+  .seal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -78%); z-index: 5; font-size: 1.7rem; transition: opacity .4s ease; }
+  .envelope.open .flap { transform: rotateX(180deg); z-index: 0; }
+  .envelope.open .letter { transform: translateY(-58%); }
+  .envelope.open .to, .envelope.open .seal { opacity: 0; }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: var(--sans); font-weight: 700; font-size: 1.05rem; letter-spacing: .02em;
+    color: #fff; background: linear-gradient(135deg, var(--pink-deep), var(--grape));
+    border: 2px solid rgba(255,255,255,.85); border-radius: 999px;
+    padding: 13px 36px; cursor: pointer; min-height: 50px;
+    box-shadow: 0 8px 22px rgba(190,40,130,.38);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  button:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 26px rgba(190,40,130,.5); }
+  button:active { transform: scale(.97); }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  button.soft { background: rgba(255,255,255,.82); color: var(--pink-deep); border-color: #fff; box-shadow: 0 6px 16px rgba(190,40,130,.22); padding: 13px 24px; }
+  button[hidden] { display: none; }
+  #openBtn { margin-top: 8px; font-size: 1.15rem; padding: 14px 46px; animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.06); } }
+
+  /* ---------- Message card ---------- */
+  main {
+    position: relative; z-index: 2; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px 18px 140px;
+    opacity: 0; transition: opacity 1.6s ease .3s;
+  }
+  body.started main, body.started nav, body.started .tools { opacity: 1; }
+  .card {
+    position: relative; width: min(92vw, 560px); max-height: 100%; overflow-y: auto;
+    padding: 34px 28px 30px; text-align: center;
+    background: rgba(255,255,255,.80); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 3px solid #fff; border-radius: 32px;
+    box-shadow: 0 18px 50px rgba(160,30,110,.35), inset 0 0 0 5px rgba(255,150,200,.25);
+    transition: opacity .6s ease, transform .6s ease;
+  }
+  .card.out { opacity: 0; transform: translateY(10px) scale(.98); }
+  .icon { font-size: 2.2rem; margin-bottom: 8px; animation: bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-5px) rotate(-4deg); } }
+  .message { font-family: var(--script); font-weight: 600; font-size: clamp(1.7rem, 5.4vw, 2.3rem); line-height: 1.4; color: var(--berry); }
+  .message em { font-style: normal; font-weight: 700; background: linear-gradient(90deg, var(--pink-deep), var(--grape)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .message.poem { font-size: clamp(1.1rem, 3.9vw, 1.5rem); line-height: 1.5; }
+  .message .ptitle { display: block; font-size: 1.5em; font-weight: 700; line-height: 1.2; margin: .3em 0 .5em; background: linear-gradient(90deg, var(--pink-deep), var(--grape)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .message .stanza.sub { font-weight: 700; }
+  .message .stanza.dedic { font-size: .92em; opacity: .9; }
+  .message .stanza.big { font-size: 1.35em; line-height: 1.3; }
+  .message .stanza { display: block; margin-bottom: .9em; }
+  .message .stanza:last-child { margin-bottom: 0; }
+
+  nav {
+    position: fixed; z-index: 3; left: 0; right: 0; bottom: 0;
+    padding: 16px 20px calc(24px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    opacity: 0; transition: opacity 1.6s ease .3s;
+  }
+  .progress { width: min(70vw, 320px); height: 7px; border-radius: 999px; background: rgba(255,255,255,.65); overflow: hidden; box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+  .progress span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--pink-deep), var(--grape)); transition: width .5s ease; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.6); transition: background .4s, transform .4s; }
+  .dot.active { background: var(--pink-deep); transform: scale(1.5); box-shadow: 0 0 0 2px #fff; }
+  .buttons { display: flex; gap: 12px; align-items: center; }
+
+  .tools { position: fixed; z-index: 4; top: calc(12px + env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; opacity: 0; transition: opacity 1.6s ease .3s; }
+  .tools button { padding: 8px 16px; min-height: 40px; font-size: .9rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bg, .card, .letter, .flap, #intro, main, nav, .tools { transition-duration: .01s !important; transition-delay: 0s !important; }
+    .bg.on { animation: none; transform: none; }
+    .icon, #openBtn, .wing-flap, .track { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="fallback"></div>
+<div class="veil"></div>
+
+<div class="strip" id="strip" aria-hidden="true"><div class="track" id="track"></div></div>
+
+<audio id="music" preload="auto"></audio>
+
+<!-- Envelope intro -->
+<section id="intro">
+  <div class="intro-title">A little something for you</div>
+  <div class="bear">
+    <img src="bear.png" alt="" onerror="this.replaceWith(document.createTextNode('🧸'))">
+  </div>
+  <div class="envelope" id="envelope">
+    <div class="env-back"></div>
+    <div class="letter">With love 💗</div>
+    <div class="pocket"></div>
+    <div class="pocket-shade"></div>
+    <div class="flap"></div>
+    <div class="seal">💗</div>
+    <div class="to">To my baby girl</div>
+  </div>
+  <button id="openBtn">Open 💌</button>
+</section>
+
+<div class="tools">
+  <button class="soft" id="poemBtn" aria-label="Go to the poem">The poem 💗</button>
+  <button class="soft" id="muteBtn" aria-label="Turn music on or off">Music on</button>
+  <button class="soft" id="skipBtn" aria-label="Next song">Skip ♪</button>
+</div>
+
+<main>
+  <div class="card" id="card">
+    <div class="icon" id="icon"></div>
+    <p class="message" id="message" aria-live="polite"></p>
+  </div>
+</main>
+
+<nav>
+  <div class="progress" aria-hidden="true"><span id="barFill"></span></div>
+  <div class="buttons">
+    <button class="soft" id="back" hidden>Back</button>
+    <button id="next">Next</button>
+  </div>
+</nav>
+
+<div class="float-layer" id="floatLayer" aria-hidden="true"></div>
+
+<script>
+  /* 1) PHOTOS + VIDEOS: name them photo1.jpg, photo2.jpg ... and video1.mp4, video2.mp4 ...
+     Photos go in a folder called photos, videos in a folder called videos (or next to this page).
+     Videos are spread evenly between the photos. Raise the numbers below if you add more. */
+  const PHOTO_COUNT = 20;   // looks for photo1 ... photo20 (any that are missing are skipped)
+  const VIDEO_COUNT = 10;   // looks for video1 ... video10 (any that are missing are skipped)
+  const PHOTO_SECONDS = [5, 7];    // each photo stays between these many seconds (random each time)
+  const VIDEO_SECONDS = [8, 13];   // each video plays this long, then is cut off (short clips loop until time is up)
+
+  /* MUSIC PLAYLIST: save your song files in the same folder with these names (or change the names here).
+     They play in this order, then start over. Songs that are missing are skipped. */
+  const PLAYLIST = [
+    ["song1.mp3", "song1_mp3.mp3", "songs/song1.mp3", "music/song1.mp3", "song1.MP3"],
+    ["song2.mp3", "song2_mp3.mp3", "songs/song2.mp3", "music/song2.mp3", "song2.MP3"],
+    ["song3.mp3", "song3_mp3.mp3", "songs/song3.mp3", "music/song3.mp3", "song3.MP3"],
+    ["song4.mp3", "song4_mp3.mp3", "songs/song4.mp3", "music/song4.mp3", "song4.MP3"],
+    ["song5.mp3", "song5_mp3.mp3", "songs/song5.mp3", "music/song5.mp3", "song5.MP3"],
+    ["song6.mp3", "song6_mp3.mp3", "songs/song6.mp3", "music/song6.mp3", "song6.MP3"],
+    ["song7.mp3", "song7_mp3.mp3", "songs/song7.mp3", "music/song7.mp3", "song7.MP3"],
+    ["song8.mp3", "song8_mp3.mp3", "songs/song8.mp3", "music/song8.mp3", "song8.MP3"]
+  ];
+
+  /* 2) MESSAGES: one per slide, each with its own little emoji. Wrap a phrase in <em>...</em> to colour it. */
+  /* The name used in the very first slide. Change it to her nickname. */
+  const NICK = "baby girl";
+
+  const SLIDES = [
+    { e: "💌", t: "Hey there, <em>" + NICK + "</em>. How are you doing? This is for you, from me. Click next whenever you're ready." },
+    { e: "🌸", t: "Do you remember when we first met? I do. I remember thinking I had just met the <em>most beautiful soul</em>." },
+    { e: "✨", t: "And ever since then, everything about you has felt a little bit <em>magical</em>." },
+    { e: "🎶", t: "The time we had was pure joy. The vibes, the laughing, the silly little things only the two of us understood." },
+    { e: "👏", t: "All those times we clapped, sang, and did random things for no reason at all, just because we could." },
+    { e: "🧸", t: "Those were some of my <em>happiest days</em>. You made ordinary moments feel like something worth keeping." },
+    { e: "🦋", t: "I've never forgotten any of it. Not one laugh." },
+    { e: "🌧️", t: "But then I went away, for a long time. And I have some things to say about that, from my heart. You never have to answer any of them." },
+    { e: "🥺", t: "First of all, I've heard your feedback, and I've <em>accepted it</em>. I'm sorry. I really am." },
+    { e: "🌙", t: "I might not have you again in this lifetime, but I will keep my <em>promise</em>. In this life, and in the next one." },
+    { e: "🕊️", t: "I'm not asking for a relationship. Nothing I do now is a guarantee that you'll be with me." },
+    { e: "💗", t: "All I'm doing is making sure you feel <em>loved</em>, feel appreciated, and feel everything you deserve." },
+    { e: "⏳", t: "For all the years I disappeared, all the years I went away, all the time you think can never be recovered... I will do everything <em>in and out of my power</em> to recover it." },
+    { e: "🎀", t: "And I don't want you to feel any duty, or trapped, or like you owe me because of what I do. <em>Nothing is owed.</em>" },
+    { e: "🎤", t: "Back in 2019, you called me daddy. I was the one who would sing, clap, and do anything, on call, just to make sure you were okay." },
+    { e: "🧸", t: "I'm still going to be <em>that person</em>." },
+    { e: "💞", t: "You've always been my <em>baby girl</em>, and I've always been your daddy. We've always been intertwined." },
+    { e: "🌷", t: "I know I can't be everything. But I will be <em>something</em>. Even if I can't be your thing, I'll be something for you." },
+    { e: "🤍", t: "I haven't closed my heart on you, but I've made my peace. Even if you never become mine again, I'll still do what I'm supposed to do, even if it's as a <em>friend</em>." },
+    { e: "🦋", t: "I don't want to disappear, and I don't want you to disappear. I want us to stay in <em>contact</em>." },
+    { e: "🫶", t: "Not to crowd you. The more I reach out, the more I understand you, and the better I can adjust to your tone, your mood, and your pace." },
+    { e: "✨", t: "I'm not doing this for my own pleasure. I'm doing it because <em>you matter</em> to me." },
+    { e: "☁️", t: "If you feel numb, that's okay. If you feel quiet, that's okay. I'll meet you wherever you are, even at your lowest, as your <em>friend</em> first." },
+    { e: "📖", t: "And if you ever feel down, or wonder whether I'll change or stop keeping my promises, come back here. There's a poem waiting for those days. You can always find it under The poem at the top." },
+    { e: "📖", poem: true, t: "<span class='ptitle'>Part to Meet, Meet to Part</span><span class='stanza sub'>Until We Meet, Until We Part No More</span><span class='stanza dedic'>For my baby girl, with all the tenderness my heart could hold.</span>" },
+    { e: "🦋", poem: true, t: "<span class='stanza'>Part to meet, meet to part,<br>Until we meet, until we part no more;<br>For some souls leave their footprints on the heart,<br>And make us grateful that our paths once crossed before.</span><span class='stanza'>If I could paint the stars with words of gold,<br>I'd write the loveliest story ever told;<br>But even heaven's finest art would fail to show<br>The beauty you possess, both within and so.</span><span class='stanza'>For beauty lives in more than lovely eyes,<br>Or perfect smiles beneath the morning skies.<br>It's in your spirit, in the way you care,<br>In how you make a little warmth from ordinary air.</span>" },
+    { e: "💗", poem: true, t: "<span class='stanza'>It's in your laughter, effortless and bright,<br>The kind that makes a heavy moment light.<br>It's in your presence, in your quiet grace,<br>The little things that make you fill a space.</span><span class='stanza'>And, girl, your charisma needs no grand display;<br>You have a way of brightening an ordinary day.<br>There's something in your nature, rare and true,<br>That makes the world more interesting because of you.</span><span class='stanza'>Your heart knows how to love with honest fire,<br>To give with tenderness, to hope, aspire.<br>You care in ways that words cannot explain,<br>And still find room for kindness through your pain.</span>" },
+    { e: "🌸", poem: true, t: "<span class='stanza'>And should you doubt the goodness that you bear,<br>Remember how you love, how much you care.<br>The world may fail to notice what I see,<br>But never let its blindness define thee.</span><span class='stanza'>For you are more than someone's passing view,<br>More than the days when life feels strange and blue.<br>You are the dreams you chase, the things you do,<br>The thousand little things that make you you.</span><span class='stanza'>And if some days your heart feels far away,<br>If colours fade and skies refuse to stay,<br>You need not force a smile to prove you're strong,<br>Nor pretend to feel what hasn't come along.</span>" },
+    { e: "✨", poem: true, t: "<span class='stanza'>Take all the time your healing heart may need;<br>No flower blooms because the world decreed.<br>Even the moon must lose its silver light<br>Before it returns to grace another night.</span><span class='stanza'>And when the world grows heavy on your chest,<br>I hope you find the courage to find rest.<br>You need not have the perfect words to say;<br>You are still worthy on your hardest day.</span><span class='stanza'>And if you ever wonder, in the quiet of the night,<br>If someone sees your worth beyond your brightest light,<br>Come back to these few words, and let them gently say:</span>" },
+    { e: "🕊️", poem: true, t: "<span class='stanza big'><em>You are still extraordinary on an ordinary day.</em></span>" },
+    { e: "🌙", poem: true, t: "<span class='stanza'>Now, let me speak of things I should have done,<br>Of all the times I could have been the one<br>To listen more, to understand your heart,<br>To choose more wisdom right from the very start.</span><span class='stanza'>I cannot change the past or make it new,<br>But I can own the ways I failed you.<br>I'm sorry for the hurt my actions may have made,<br>For every moment when my care fell short of what you deserved.</span><span class='stanza'>I cannot ask the past to rearrange,<br>Nor heal your heart by promising to change.<br>I know that sorry cannot make things right;<br>It's changed behaviour that gives words their light.</span>" },
+    { e: "🎀", poem: true, t: "<span class='stanza'>I won't ask your heart to heal because of me,<br>Or make you feel that you owe me anything.<br>You have the right to breathe, to feel, to find your way;<br>You owe me neither love nor words you cannot say.</span><span class='stanza'>And if our roads should lead us somewhere new,<br>I'll still be glad this world once brought me you.<br>For knowing you was never time in vain;<br>Some gifts remain, though seasons change again.</span><span class='stanza'>I won't make promises that time alone can test,<br>Or ask forever when today needs rest.<br>But I can wish you joy in all you do,<br>And hope that life is always kind to you.</span>" },
+    { e: "💞", poem: true, t: "<span class='stanza'>May every dream you nurture find its wings,<br>May life surprise you with a thousand beautiful things.<br>May laughter find you when you least expect,<br>And may you know a peace no storm can disconnect.</span><span class='stanza'>May you walk into each room and own your grace,<br>Never feel you need to hide your face.<br>May you see the woman others are blessed to know,<br>And love the person you are still becoming as you grow.</span><span class='stanza'>And if you ever reach for me one day,<br>And find that life has carried me away,<br>I hope these words will bring a little light,<br>And remind you that your worth remains outright.</span>" },
+    { e: "🦋", poem: true, t: "<span class='stanza'>Not because you owe me a place in your heart,<br>Not because we must promise we'll never part,<br>But because some people, without even trying,<br>Leave the world more beautiful simply by being in it.</span><span class='stanza'>And you, my dear, have been one such soul;<br>A lovely chapter, a story worth being told.<br>Whatever tomorrow writes upon our shore,<br>I'll be glad our paths crossed, forevermore.</span>" },
+    { e: "🧸", poem: true, t: "<span class='ptitle'>A Little Word I'll Always Remember</span>" },
+    { e: "💗", poem: true, t: "<span class='stanza'>And there's one little word I could never ignore,<br>One that will live in my heart forevermore.<br>A word you once called me, so tender and true,<br>A name that became something precious from you.</span><span class='stanza big'><em>Daddy.</em></span>" },
+    { e: "🌸", poem: true, t: "<span class='stanza'>Do you remember, my baby girl, the day<br>You called me that in your own little way?<br>Perhaps you knew not how deeply it would stay,<br>Or how I'd keep that memory tucked away.</span><span class='stanza'>For in that little word, I found something rare,<br>A sweetness, a closeness, a moment of care.<br>And no matter how far life's roads may unfurl,<br>I'll always remember you, my baby girl.</span><span class='stanza'>And I'll always be Daddy in the memory we share,<br>The one who remembers that moment with care.<br>Not as a claim on your heart or a bond you owe,<br>But as a precious little truth that time cannot forego.</span>" },
+    { e: "✨", poem: true, t: "<span class='stanza'>If distance should find us on opposite shores,<br>If life takes us through unfamiliar doors,<br>And time writes a story we never foresaw,<br>I'll remember that name and the tenderness it brought.</span><span class='stanza'>For some words are treasures we quietly keep,<br>Little promises the heart holds deep.<br>And if we should wander, as people sometimes do,<br>I'll never forget that sweet name from you.</span><span class='stanza'>Always your Daddy, my precious baby girl,<br>A little piece of tenderness in this complicated world.<br>Whatever tomorrow may have in store,<br>I'll cherish that memory forevermore.</span>" },
+    { e: "🕊️", poem: true, t: "<span class='stanza'>And if life should bring us together again,<br>Through changing seasons and sunshine and rain,<br>I hope we can smile at the roads we once knew,<br>And remember the tenderness that once carried us through.</span>" },
+    { e: "🌈", poem: true, t: "<span class='ptitle'>Until We Meet Again</span>" },
+    { e: "🌙", poem: true, t: "<span class='stanza'>So, if these words should find you feeling blue,<br>Remember there is so much more to you.<br>You're beauty, courage, kindness, charm, and light;<br>You're still a thousand stars beyond the night.</span><span class='stanza'>And if life ever makes you doubt your worth,<br>Remember you were wonderful from the day of your birth.<br>Before expectations weighed upon your heart,<br>You were already worthy, right from the start.</span><span class='stanza'>May you find joy that doesn't ask you why,<br>And see new colours in the open sky.<br>May you discover, when the days are through,<br>That life still has beautiful things for you.</span>" },
+    { e: "🎀", poem: true, t: "<span class='stanza'>And should my name someday cross your mind,<br>I hope the thought is gentle and kind.<br>I hope the good we shared, however small,<br>Can stand as something beautiful through it all.</span><span class='stanza'>I won't ask you to stay to prove our time was true,<br>Nor make you feel indebted for the love I have for you.<br>For love, at its finest, does not demand a prize;<br>It sees the soul it cherishes and wants to see it rise.</span><span class='stanza'>So go, be brilliant. Let your spirit soar.<br>Let life reveal what you were made for.<br>May happiness find you, wherever you roam,<br>And may your heart always find its way home.</span>" },
+    { e: "💞", poem: true, t: "<span class='stanza'>And if our story takes a different door,<br>I'll still wish you happiness and so much more.<br>For meeting you was a gift I shall adore,<br>A chapter of life I'll always be grateful for.</span><span class='stanza'>If you ever feel forgotten, let these words remind you:<br>The world is still unfolding beautiful things around you.<br>You are worthy of kindness, of peace, and of love,<br>Of the gentle things life has waiting above.</span><span class='stanza'>And if you take one thing from all I've written here,<br>Let it be this, my darling, whenever the world feels unclear:</span>" },
+    { e: "🦋", poem: true, t: "<span class='stanza'>You never have to love me to deserve my care.<br>You never have to heal before you're worthy of someone being there.<br>You never have to stay to prove our time was true.<br>And nothing good I've wished for you depends on what you do.</span><span class='stanza'>So keep these words for when the nights grow long,<br>For when you need a little hope, a little song.<br>And let them tell you, when the world feels sore,<br>That you are worthy, now and evermore.</span><span class='stanza'>Part to meet, meet to part,<br>Yet never think distance can erase the heart.<br>And should we meet again, as once we swore,<br>May we meet with peace, and part no more.</span>" },
+    { e: "💗", poem: true, t: "<span class='stanza'>But if our paths should never cross that way again,<br>If all that's left are memories of where and when,<br>I'll still be glad our paths once met upon this shore,<br>And grateful for my baby girl, forevermore.</span><span class='stanza'>Part to meet, meet to part,<br>Until we meet, until we part no more.</span><span class='stanza'>And if we never meet as lovers do,<br>May life still bring its loveliest things to you.</span>" },
+    { e: "🌸", poem: true, t: "<span class='stanza'>For you were never mine to keep, my dear;<br>You were a soul I was simply glad was here.</span><span class='stanza'>Always your Daddy.<br>Forever my baby girl in that precious memory. ❤️</span>" }
+  ];
+
+  const card = document.getElementById("card");
+  const msg = document.getElementById("message");
+  const icon = document.getElementById("icon");
+  const nextBtn = document.getElementById("next");
+  const backBtn = document.getElementById("back");
+  const bar = document.getElementById("barFill");
+  const music = document.getElementById("music");
+  const muteBtn = document.getElementById("muteBtn");
+  const LAST = SLIDES.length - 1;
+  const FIRST_POEM = SLIDES.findIndex(s => s.poem);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let i = 0;
+
+  
+
+  function render() {
+    const s = SLIDES[i];
+    msg.classList.toggle("poem", !!s.poem);
+    msg.innerHTML = s.t;
+    icon.textContent = s.e;
+    card.classList.remove("out");
+    card.scrollTop = 0;
+    bar.style.width = ((i + 1) / SLIDES.length * 100) + "%";
+    backBtn.hidden = i === 0;
+    nextBtn.textContent = i === LAST ? "Start over" : "Next";
+  }
+  const TRANSITIONS = [
+    { name: "bloom", petals: true, dur: [380, 800],
+      out: [{ transform: "scale(1) rotate(0deg)", opacity: 1 }, { transform: "scale(.12) rotate(-18deg)", opacity: 0 }],
+      in:  [{ transform: "scale(.1) rotate(18deg)", opacity: 0 }, { transform: "scale(1.08) rotate(-3deg)", opacity: 1, offset: .7 }, { transform: "scale(1) rotate(0deg)", opacity: 1 }] },
+    { name: "flip", dur: [380, 650],
+      out: [{ transform: "perspective(900px) rotateY(0deg)", opacity: 1 }, { transform: "perspective(900px) rotateY(90deg)", opacity: 0 }],
+      in:  [{ transform: "perspective(900px) rotateY(-90deg)", opacity: 0 }, { transform: "perspective(900px) rotateY(0deg)", opacity: 1 }] },
+    { name: "spin", petals: true, dur: [420, 800],
+      out: [{ transform: "rotate(0deg) scale(1)", opacity: 1 }, { transform: "rotate(200deg) scale(0)", opacity: 0 }],
+      in:  [{ transform: "rotate(-200deg) scale(0)", opacity: 0 }, { transform: "rotate(8deg) scale(1.06)", opacity: 1, offset: .75 }, { transform: "rotate(0deg) scale(1)", opacity: 1 }] },
+    { name: "pop", dur: [320, 750],
+      out: [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(.5) translateY(30px)", opacity: 0 }],
+      in:  [{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.15)", opacity: 1, offset: .6 }, { transform: "scale(.96)", offset: .8 }, { transform: "scale(1)", opacity: 1 }] },
+    { name: "swing", dur: [400, 750],
+      out: [{ transform: "translateX(0) rotate(0deg)", opacity: 1 }, { transform: "translateX(-90vw) rotate(-14deg)", opacity: 0 }],
+      in:  [{ transform: "translateX(90vw) rotate(14deg)", opacity: 0 }, { transform: "translateX(-10px) rotate(-2deg)", opacity: 1, offset: .8 }, { transform: "translateX(0) rotate(0deg)", opacity: 1 }] },
+    { name: "float", petals: true, dur: [420, 800],
+      out: [{ transform: "translateY(0) scale(1)", opacity: 1 }, { transform: "translateY(-60px) scale(.9)", opacity: 0 }],
+      in:  [{ transform: "translateY(70px) scale(.85)", opacity: 0 }, { transform: "translateY(-8px) scale(1.03)", opacity: 1, offset: .75 }, { transform: "translateY(0) scale(1)", opacity: 1 }] }
+  ];
+  let busy = false, lastT = -1;
+
+  function petalBurst() {
+    if (reduceMotion) return;
+    const r = card.getBoundingClientRect();
+    for (let k = 0; k < 9; k++) spawnHeart(r.left + r.width / 2 + (Math.random() - .5) * r.width * .5, r.top + r.height / 2, true);
+  }
+
+  function show(n, first) {
+    if (busy && !first) return;
+    i = Math.max(0, Math.min(LAST, n));
+    if (first || reduceMotion) { render(); return; }
+    let k; do { k = Math.floor(Math.random() * TRANSITIONS.length); } while (k === lastT);
+    lastT = k;
+    const t = TRANSITIONS[k];
+    busy = true;
+    const outAnim = card.animate(t.out, { duration: t.dur[0], easing: "ease-in", fill: "forwards" });
+    outAnim.onfinish = () => {
+      render();
+      outAnim.cancel();
+      const inAnim = card.animate(t.in, { duration: t.dur[1], easing: "cubic-bezier(.22,.9,.3,1)" });
+      if (t.petals) petalBurst();
+      inAnim.onfinish = () => { busy = false; };
+    };
+  }
+
+  nextBtn.addEventListener("click", () => { burst(nextBtn); show(i === LAST ? 0 : i + 1); });
+  backBtn.addEventListener("click", () => show(i - 1));
+  document.getElementById("poemBtn").addEventListener("click", () => show(FIRST_POEM));
+  document.addEventListener("keydown", e => {
+    if (!document.body.classList.contains("started")) return;
+    if (e.key === "ArrowRight") nextBtn.click();
+    if (e.key === "ArrowLeft") show(i - 1);
+  });
+  let touchX = null;
+  document.addEventListener("touchstart", e => { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", e => {
+    if (touchX === null || !document.body.classList.contains("started")) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (dx < -60) nextBtn.click(); else if (dx > 60) show(i - 1);
+    touchX = null;
+  });
+
+  /* Envelope: opens, music starts (browsers need a tap first, and this is it), then the slides begin */
+  document.getElementById("openBtn").addEventListener("click", function () {
+    this.disabled = true; this.style.opacity = 0;
+    document.getElementById("envelope").classList.add("open");
+    burst(this, 10);
+    music.volume = 0.6;
+    wantPlay = true; music.play().catch(() => { muteBtn.textContent = "Music off"; });
+    setTimeout(() => {
+      document.getElementById("intro").classList.add("gone");
+      document.body.classList.add("started");
+    }, 2400);
+  });
+
+  muteBtn.addEventListener("click", () => {
+    if (muteBtn.textContent === "No music found") {
+      alert("I looked for the songs at addresses like:\n\n" + new URL(PLAYLIST[0][2], location.href).href +
+            "\n\nThis page's address is:\n" + location.href +
+            "\n\nCheck that a folder called songs sits next to this page and has song1.mp3 inside it.");
+      return;
+    }
+    if (music.paused) { wantPlay = true; music.play().catch(() => {}); muteBtn.textContent = "Music on"; }
+    else { wantPlay = false; music.pause(); muteBtn.textContent = "Music off"; }
+  });
+  /* Playlist: plays songs in order, skips missing files, loops forever */
+  const skipBtn = document.getElementById("skipBtn");
+  let track = 0, failures = 0, wantPlay = false;
+  let cand = 0;
+  function loadTrack(n) { track = ((n % PLAYLIST.length) + PLAYLIST.length) % PLAYLIST.length; cand = 0; music.src = PLAYLIST[track][0]; }
+  function playTrack() { wantPlay = true; music.play().catch(() => {}); }
+  music.addEventListener("ended", () => { loadTrack(track + 1); if (wantPlay) playTrack(); });
+  music.addEventListener("playing", () => { failures = 0; });
+  music.addEventListener("error", () => {
+    console.warn("Could not load:", PLAYLIST[track][cand]);
+    if (cand + 1 < PLAYLIST[track].length) { cand++; music.src = PLAYLIST[track][cand]; if (wantPlay) playTrack(); return; }
+    failures++;
+    if (failures >= PLAYLIST.length) { muteBtn.textContent = "No music found"; wantPlay = false; return; }
+    loadTrack(track + 1); if (wantPlay) playTrack();
+  });
+  skipBtn.addEventListener("click", () => { loadTrack(track + 1); if (!music.paused || wantPlay) playTrack(); });
+  loadTrack(0);
+
+  /* ---------- Butterflies ---------- */
+  const layer = document.getElementById("floatLayer");
+  const BUTTERFLY_COLORS = [
+    ["#ff5fa8", "#ffc2e0"], ["#b983ff", "#e6d2ff"], ["#ff8fc7", "#fff0f8"],
+    ["#7fd8ff", "#d6f3ff"], ["#ffb86b", "#ffe5c4"], ["#ff6f91", "#ffd0dc"]
+  ];
+  function butterflySVG(c1, c2) {
+    const wing =
+      `<path d="M32 24 C 22 0, 2 2, 5 21 C 7 33, 22 37, 32 27 Z" fill="${c1}" stroke="#fff" stroke-width="1.4"/>
+       <path d="M32 27 C 22 31, 8 37, 15 45 C 23 49, 32 39, 32 29 Z" fill="${c2}" stroke="#fff" stroke-width="1.4"/>
+       <circle cx="15" cy="16" r="3.4" fill="#fff" opacity=".75"/>`;
+    return `<svg viewBox="0 0 64 50" xmlns="http://www.w3.org/2000/svg">
+      <g class="wing-flap">${wing}</g>
+      <g transform="translate(64,0) scale(-1,1)"><g class="wing-flap">${wing}</g></g>
+      <rect x="30.2" y="14" width="3.6" height="24" rx="1.8" fill="#6b1a4c"/>
+      <path d="M31 15 C 28 8, 24 6, 22 4 M33 15 C 36 8, 40 6, 42 4" stroke="#6b1a4c" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function spawnButterfly(idx) {
+    const el = document.createElement("div");
+    el.className = "butterfly";
+    const [c1, c2] = BUTTERFLY_COLORS[idx % BUTTERFLY_COLORS.length];
+    el.innerHTML = butterflySVG(c1, c2);
+    const size = 30 + Math.random() * 30;
+    el.style.width = size + "px"; el.style.height = size * .78 + "px";
+    layer.appendChild(el);
+    const W = window.innerWidth, H = window.innerHeight;
+    const pts = [];
+    const n = 6;
+    for (let k = 0; k < n; k++) pts.push([Math.random() * (W - 60), Math.random() * (H - 60)]);
+    const frames = pts.concat([pts[0]]).map((p, k, arr) => {
+      const next = arr[Math.min(k + 1, arr.length - 1)];
+      const angle = Math.atan2(next[1] - p[1], next[0] - p[0]) * 180 / Math.PI + 90;
+      return { transform: `translate(${p[0]}px, ${p[1]}px) rotate(${Math.max(-25, Math.min(25, (angle % 360) > 180 ? (angle % 360) - 360 : angle % 360))}deg)` };
+    });
+    el.animate(frames, { duration: 22000 + Math.random() * 14000, iterations: Infinity, easing: "ease-in-out", delay: -Math.random() * 20000 });
+  }
+
+  /* ---------- Hearts ---------- */
+  const HEARTS = ["💗", "💖", "💕", "🩷", "💞", "🌸"];
+  function spawnHeart(x, y, burstMode) {
+    const el = document.createElement("span");
+    el.className = "heart";
+    el.textContent = HEARTS[Math.floor(Math.random() * HEARTS.length)];
+    const size = 14 + Math.random() * 22;
+    el.style.fontSize = size + "px";
+    layer.appendChild(el);
+    const W = window.innerWidth, H = window.innerHeight;
+    const sx = burstMode ? x : Math.random() * (W - 30);
+    const sy = burstMode ? y : H + 20;
+    const drift = (Math.random() - .5) * (burstMode ? 160 : 120);
+    const rise = burstMode ? 120 + Math.random() * 140 : H + 80;
+    const dur = burstMode ? 1400 + Math.random() * 900 : 7000 + Math.random() * 6000;
+    el.style.left = "0px"; el.style.top = "0px"; el.style.bottom = "auto";
+    const anim = el.animate([
+      { transform: `translate(${sx}px, ${sy}px) scale(.6) rotate(0deg)`, opacity: 0 },
+      { opacity: .95, offset: .12 },
+      { transform: `translate(${sx + drift / 2}px, ${sy - rise / 2}px) scale(1) rotate(${(Math.random() - .5) * 30}deg)`, opacity: .95, offset: .55 },
+      { transform: `translate(${sx + drift}px, ${sy - rise}px) scale(.9) rotate(${(Math.random() - .5) * 40}deg)`, opacity: 0 }
+    ], { duration: dur, easing: "ease-out" });
+    anim.onfinish = () => el.remove();
+  }
+  function burst(btn, count) {
+    if (reduceMotion) return;
+    const r = btn.getBoundingClientRect();
+    const n = count || 6;
+    for (let k = 0; k < n; k++) spawnHeart(r.left + r.width / 2 - 10 + (Math.random() - .5) * r.width * .6, r.top + r.height / 2, true);
+  }
+
+  if (!reduceMotion) {
+    for (let k = 0; k < 8; k++) spawnButterfly(k);
+    for (let k = 0; k < 6; k++) setTimeout(() => spawnHeart(), k * 500);
+    setInterval(() => spawnHeart(), 900);
+  }
+
+  /* ---------- Photos & videos: each one pops up from the ground, stays a while, then sinks away ---------- */
+  const secs = ([a, b]) => (a + Math.random() * (b - a)) * 1000;
+  const strip = document.getElementById("strip");
+  const stage = document.getElementById("track");
+
+  function findMedia(name) {
+    return new Promise(resolve => {
+      const isVideo = /\.(mp4|webm|mov|m4v)$/i.test(name);
+      const base = name.replace(/\.[^.]+$/, "");
+      const ext = (name.match(/\.([^.]+)$/) || [])[1] || (isVideo ? "mp4" : "jpg");
+      const exts = isVideo ? [ext, "mp4", "webm", "mov", "MP4"] : [ext, "jpg", "jpeg", "png", "webp", "JPG", "PNG"];
+      const dirs = isVideo ? ["", "videos/", "photos/"] : ["", "photos/"];
+      const list = [];
+      dirs.forEach(d => exts.forEach(e => list.push(d + base + "." + e)));
+      const tries = [...new Set(list)];
+      let k = 0;
+      const next = () => {
+        if (k >= tries.length) return resolve(null);
+        const src = tries[k];
+        const ok = () => resolve({ src, video: isVideo });
+        const bad = () => { k++; next(); };
+        if (isVideo) {
+          const v = document.createElement("video");
+          v.preload = "metadata"; v.muted = true;
+          v.onloadedmetadata = ok; v.onerror = bad; v.src = src;
+        } else {
+          const img = new Image();
+          img.onload = ok; img.onerror = bad; img.src = src;
+        }
+      };
+      next();
+    });
+  }
+
+  function makeFrame(m) {
+    const f = document.createElement("figure");
+    f.className = "polaroid";
+    f.style.setProperty("--r", (Math.random() * 6 - 3).toFixed(1));
+    f.style.transform = "rotate(" + f.style.getPropertyValue("--r") + "deg)";
+    let el;
+    if (m.video) {
+      el = document.createElement("video");
+      el.muted = true; el.defaultMuted = true; el.loop = true; el.playsInline = true; el.autoplay = true;
+      el.setAttribute("muted", ""); el.setAttribute("playsinline", "");
+      el.preload = "auto"; el.src = m.src;
+    } else {
+      el = new Image(); el.alt = ""; el.decoding = "async"; el.src = m.src;
+    }
+    f.appendChild(el);
+    return f;
+  }
+
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
+  /* the picture itself blooms: it starts as a tiny bud at the bottom and opens up with a little bounce */
+  const popIn = r => [
+    { transform: "scale(.04) translateY(14%) rotate(" + (r - 12) + "deg)", opacity: 0, offset: 0 },
+    { transform: "scale(.55) translateY(6%) rotate(" + (r + 6) + "deg)", opacity: 1, offset: .35 },
+    { transform: "scale(1.09) translateY(-1%) rotate(" + (r - 3) + "deg)", opacity: 1, offset: .65 },
+    { transform: "scale(.97) rotate(" + (r + 1.5) + "deg)", opacity: 1, offset: .82 },
+    { transform: "scale(1) translateY(0) rotate(" + r + "deg)", opacity: 1, offset: 1 }
+  ];
+  /* and closes back up like a bud */
+  const popOut = r => [
+    { transform: "scale(1) rotate(" + r + "deg)", opacity: 1 },
+    { transform: "scale(.05) translateY(10%) rotate(" + (r + 10) + "deg)", opacity: 0 }
+  ];
+
+  /* a few little hearts float up around it */
+  const SPRAY = ["💗", "💖", "💕", "🩷", "💞"];
+  function spray(frame, count) {
+    if (reduceMotion) return;
+    const rc = strip.getBoundingClientRect();
+    const x = rc.left + rc.width / 2, y = rc.bottom - 30;
+    for (let k = 0; k < (count || 12); k++) {
+      const el = document.createElement("span");
+      el.className = "heart";
+      el.textContent = SPRAY[Math.floor(Math.random() * SPRAY.length)];
+      el.style.fontSize = (12 + Math.random() * 12) + "px";
+      el.style.left = "0px"; el.style.top = "0px"; el.style.bottom = "auto";
+      layer.appendChild(el);
+      const vx = (Math.random() - .5) * Math.min(rc.width, 360), H = 90 + Math.random() * 150, rot = (Math.random() - .5) * 60;
+      const pt = t => "translate(" + (x + vx * t) + "px, " + (y - 4 * H * t * (1 - t) - 40 * t) + "px)";
+      const a = el.animate([
+        { transform: pt(0) + " scale(.4) rotate(0deg)", opacity: 0 },
+        { transform: pt(.15) + " scale(1) rotate(" + rot * .15 + "deg)", opacity: .95, offset: .12 },
+        { transform: pt(.6) + " rotate(" + rot * .6 + "deg)", opacity: .9, offset: .6 },
+        { transform: pt(1) + " rotate(" + rot + "deg)", opacity: 0 }
+      ], { duration: 1800 + Math.random() * 1000, easing: "linear", delay: Math.random() * 300 });
+      a.onfinish = () => el.remove();
+    }
+  }
+
+  async function runStage(items) {
+    while (!document.body.classList.contains("started")) await sleep(300);
+    await sleep(500);
+    let idx = 0;
+    while (true) {
+      const item = items[idx];
+      const frame = makeFrame(item);
+      const r = parseFloat(frame.style.getPropertyValue("--r")) || 0;
+      const vid = frame.querySelector("video");
+      frame.style.visibility = "hidden";          /* wait until the picture is ready, so it blooms fully formed */
+      stage.appendChild(frame);
+      if (vid) {
+        await new Promise(res => {
+          if (vid.readyState >= 2) return res();
+          vid.addEventListener("loadeddata", res, { once: true });
+          vid.addEventListener("error", res, { once: true });
+          setTimeout(res, 3000);
+        });
+        if (vid.error) { frame.remove(); idx = (idx + 1) % items.length; await sleep(300); continue; }   /* a video this browser cannot play is skipped */
+        vid.currentTime = 0; vid.play().catch(() => {});
+      } else if (frame.firstElementChild.decode) {
+        await frame.firstElementChild.decode().catch(() => {});
+      }
+      frame.style.visibility = "visible";
+      if (!reduceMotion) {
+        frame.animate(popIn(r), { duration: 1100, easing: "cubic-bezier(.25,.8,.3,1)", fill: "both" });
+        setTimeout(() => spray(frame), 400);
+        setTimeout(() => spray(frame, 6), 900);
+      }
+      await sleep(secs(item.video ? VIDEO_SECONDS : PHOTO_SECONDS));
+      if (items.length === 1) return;
+      if (!reduceMotion) {
+        frame.animate(popOut(r), { duration: 600, easing: "ease-in", fill: "forwards" });
+        await sleep(600);
+      }
+      if (vid) { vid.pause(); vid.removeAttribute("src"); vid.load(); }
+      frame.remove();
+      idx = (idx + 1) % items.length;
+    }
+  }
+
+  const photoNames = Array.from({ length: PHOTO_COUNT }, (_, k) => "photo" + (k + 1) + ".jpg");
+  const videoNames = Array.from({ length: VIDEO_COUNT }, (_, k) => "video" + (k + 1) + ".mp4");
+  Promise.all([Promise.all(photoNames.map(findMedia)), Promise.all(videoNames.map(findMedia))]).then(([p, v]) => {
+    const photos = p.filter(Boolean), videos = v.filter(Boolean);
+    const good = [];
+    let vi = 0;
+    photos.forEach((ph, k) => {
+      good.push(ph);
+      while (vi < videos.length && k + 1 >= Math.round((vi + 1) * photos.length / (videos.length + 1))) good.push(videos[vi++]);
+    });
+    while (vi < videos.length) good.push(videos[vi++]);
+    const lostVideos = videoNames.filter((_, k) => !v[k]);
+    console.info("Photos found:", photos.length, "| Videos found:", videos.length, "| Video names not found:", lostVideos.join(", "));
+    if (!good.length) return;
+    document.body.classList.add("has-photos");
+    runStage(good);
+  });
+
+  show(0, true);
+</script>
+</body>
+</html>
